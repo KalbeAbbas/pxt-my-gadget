@@ -478,8 +478,15 @@ namespace SL06 {
     //%blockId=SL06_getProximity
     //%block="SL06 get proximity"
     //%group=Proximity
-    export function getProximity(): number {
-        return 1;
+    export function getProximity()
+    {
+        let val:number = 0;
+
+        /* Read value from proximity data register */
+        // APDS9960_PDATA
+        val = wireReadDataByte(0x9C)
+
+        return val
     }
 
     //%blockId=SL06_enableLightSensor
