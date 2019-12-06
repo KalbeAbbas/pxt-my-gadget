@@ -12,6 +12,15 @@ namespace SL06 {
     let APDS9960_ID_1 = 0xAB
     let APDS9960_ID_2 = 0X9c
 
+    let gesture_data_u_data =  pins.createBuffer(32);
+    let gesture_data_d_data = pins.createBuffer(32);
+    let gesture_data_l_data = pins.createBuffer(32);
+    let gesture_data_r_data = pins.createBuffer(32);
+    let gesture_data_index: NumberFormat.UInt8BE
+    let gesture_data_total_gestures: NumberFormat.UInt8BE;
+    let gesture_data_in_threshold: NumberFormat.UInt8BE;
+    let gesture_data_out_threshold: NumberFormat.UInt8BE;
+
     let gesture_ud_delta_ = 0;
     let gesture_lr_delta_ = 0;
 
@@ -191,22 +200,65 @@ namespace SL06 {
     //%blockId=SL06_enablePower
     //%block="SL06 enable power"
     //%group=Optional
-    export function enablePower(): void {
-        return;
+    export function enablePower()
+    {
+        setMode(0, 1)
     }
 
     //%blockId=SL06_disablePower
     //%block="SL06 disable power"
     //%group=Optional
-    export function disbalePower(): void {
-        return;
+    export function disbalePower() {
+        setMode(0, 0)
     }
 
     //%blockId=SL06_enableGestureSensor
     //%block="SL06 enable gesture sensor"
     //%group=Gesture
-    export function enableGestureSensor(interrupts: boolean = false): void {
-        return;
+    export function enableGestureSensor(interrupts: boolean)
+    {
+
+        /* Enable gesture mode
+           Set ENABLE to 0 (power off)
+           Set WTIME to 0xFF
+           Set AUX to LED_BOOST_300
+           Enable PON, WEN, PEN, GEN in ENABLE 
+        */
+        resetGestureParameters();
+
+        wireWriteDataByte(0x83, 0xFF)
+
+        //APDS9960_PPULSE, DEFAULT_GESTURE_PPULSE
+        wireWriteDataByte(0x8E, 0x89)
+
+        // LED_BOOST_300
+        setLEDBoost(3)
+
+        if (interrupts) {
+            if (!setGestureIntEnable(1)) {
+                return false;
+            }
+        }
+        else {
+            if (!setGestureIntEnable(0)) {
+                return false;
+            }
+        }
+        setGestureMode(1)
+
+        enablePower()
+
+        // WAIT
+        setMode(3, 1)
+
+        // PROXIMITY
+        if (!setMode(2, 1)) {
+            return false;
+        }
+        // GESTURE
+        setMode(6, 1)
+
+        return true;
     }
 
     //%blockId=SL06_disableGestureSensor
@@ -544,6 +596,61 @@ namespace SL06 {
         /* Write register value back into GCONF2 register */
         // APDS9960_GCONF2
         wireWriteDataByte(0xA3, val)
+    }
+
+    function setLEDBoost(boost: number)
+    {
+        let val:number;
+
+        /* Read value from CONFIG2 register */
+        // APDS9960_CONFIG2
+        val = wireReadDataByte(0x90)
+
+        /* Set bits in register to given value */
+        boost &= 0b00000011;
+        boost = boost << 4;
+        val &= 0b11001111;
+        val |= boost;
+
+        /* Write register value back into CONFIG2 register */
+        // APDS9960_CONFIG2
+        wireWriteDataByte(0x90, val)
+    }
+
+    function setGestureMode(mode: number)
+    {
+        let val: number;
+
+        /* Read value from GCONF4 register */
+        // APDS9960_GCONF4
+        val = wireReadDataByte(0xAB)
+
+        /* Set bits in register to given value */
+        mode &= 0b00000001;
+        val &= 0b11111110;
+        val |= mode;
+
+        /* Write register value back into GCONF4 register */
+        // APDS9960_GCONF4
+        wireWriteDataByte(0xAB, val);
+    }
+
+    function resetGestureParameters()
+    {
+        gesture_data_index = 0;
+        gesture_data_total_gestures = 0;
+
+        gesture_ud_delta_ = 0;
+        gesture_lr_delta_ = 0;
+
+        gesture_ud_count_ = 0;
+        gesture_lr_count_ = 0;
+
+        gesture_near_count_ = 0;
+        gesture_far_count_ = 0;
+
+        gesture_state_ = 0;
+        gesture_motion_ = 'none';
     }
 
 
