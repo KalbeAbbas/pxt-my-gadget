@@ -494,14 +494,10 @@ namespace SL06 {
         setAmbientLightGain(1)
 
         if (interrupts) {
-            if (!setAmbientLightIntEnable(1)) {
-                return false;
-            }
+            setAmbientLightIntEnable(1)
         }
         else {
-            if (!setAmbientLightIntEnable(0)) {
-                return false;
-            }
+            setAmbientLightIntEnable(0)
         }
         enablePower()
 
