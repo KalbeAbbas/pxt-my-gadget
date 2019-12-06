@@ -492,14 +492,9 @@ namespace SL06 {
         let i:number;
         let mode: number = getMode() & 0b01000001
 
-        while (true)
-        {
-            console.logValue("Mode", mode)
-            loops.pause(500)
-        }
 
         /* Make sure that power and gesture is on and data is valid */
-        if (!isGestureAvailable() || !(getMode() & 0b01000001)) {
+        if (!isGestureAvailable() || (mode == 0)) {
             return DIR_NONE;
         }
 
