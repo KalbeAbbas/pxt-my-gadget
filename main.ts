@@ -8,16 +8,14 @@
 //% groups=[Colour,Light, Gesture, Proximity, Optional]
 namespace SL06 {
 
-    enum directions {
-        DIR_NONE,
-        DIR_LEFT,
-        DIR_RIGHT,
-        DIR_UP,
-        DIR_DOWN,
-        DIR_NEAR,
-        DIR_FAR,
-        DIR_ALL
-    };
+    let DIR_NONE = 'none'
+    let DIR_LEFT = 'left'
+    let DIR_RIGHT = 'right'
+    let DIR_UP = 'up'
+    let DIR_DOWN = 'down'
+    let DIR_NEAR = 'near'
+    let DIR_FAR = 'far'
+    let DIR_ALL ='all'
 
     enum states {
         NA_STATE1,
@@ -49,7 +47,7 @@ namespace SL06 {
     let gesture_far_count_ = 0;
 
     let gesture_state_ = 0;
-    let gesture_motion_ = directions.DIR_NONE;
+    let gesture_motion_ = DIR_NONE;
 
     //%blockId=SL06_begin
     //%block="SL06 begin"
@@ -484,18 +482,18 @@ namespace SL06 {
     //%blockId=SL06_getGesture
     //%block="SL06 get gesture"
     //%group=Gesture
-    export function getGesture(): number
+    export function getGesture(): string
     {
         let fifo_level = 0;
         let bytes_read = 0;
         let gstatus:number;
         let fifo_data: Buffer = pins.createBuffer(128)
-        let motion:number;
+        let motion:string;
         let i:number;
 
         /* Make sure that power and gesture is on and data is valid */
         if (!isGestureAvailable() || !(getMode() & 0b01000001)) {
-            return directions.DIR_NONE;
+            return DIR_NONE;
         }
 
         /* Keep looping as long as gesture data is valid */
@@ -554,64 +552,64 @@ namespace SL06 {
             }
         }
 
-        return 0
+        return DIR_ALL
     }
 
     function decodeGesture(): boolean
     {
         /* Return if near or far event is detected */
         if (gesture_state_ == states.NEAR_STATE1) {
-            gesture_motion_ = directions.DIR_NEAR;
+            gesture_motion_ = DIR_NEAR;
             return true;
         }
         else if (gesture_state_ == states.FAR_STATE1) {
-            gesture_motion_ = directions.DIR_FAR;
+            gesture_motion_ = DIR_FAR;
             return true;
         }
 
         /* Determine swipe direction */
         if ((gesture_ud_count_ == -1) && (gesture_lr_count_ == 0)) {
-            gesture_motion_ = directions.DIR_UP;
+            gesture_motion_ = DIR_UP;
         }
         else if ((gesture_ud_count_ == 1) && (gesture_lr_count_ == 0)) {
-            gesture_motion_ = directions.DIR_DOWN;
+            gesture_motion_ = DIR_DOWN;
         }
         else if ((gesture_ud_count_ == 0) && (gesture_lr_count_ == 1)) {
-            gesture_motion_ = directions.DIR_RIGHT;
+            gesture_motion_ = DIR_RIGHT;
         }
         else if ((gesture_ud_count_ == 0) && (gesture_lr_count_ == -1)) {
-            gesture_motion_ = directions.DIR_LEFT;
+            gesture_motion_ = DIR_LEFT;
         }
         else if ((gesture_ud_count_ == -1) && (gesture_lr_count_ == 1)) {
             if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
-                gesture_motion_ = directions.DIR_UP;
+                gesture_motion_ = DIR_UP;
             }
             else {
-                gesture_motion_ = directions.DIR_RIGHT;
+                gesture_motion_ = DIR_RIGHT;
             }
         }
         else if ((gesture_ud_count_ == 1) && (gesture_lr_count_ == -1)) {
             if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
-                gesture_motion_ = directions.DIR_DOWN;
+                gesture_motion_ = DIR_DOWN;
             }
             else {
-                gesture_motion_ = directions.DIR_LEFT;
+                gesture_motion_ = DIR_LEFT;
             }
         }
         else if ((gesture_ud_count_ == -1) && (gesture_lr_count_ == -1)) {
             if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
-                gesture_motion_ = directions.DIR_UP;
+                gesture_motion_ = DIR_UP;
             }
             else {
-                gesture_motion_ = directions.DIR_LEFT;
+                gesture_motion_ = DIR_LEFT;
             }
         }
         else if ((gesture_ud_count_ == 1) && (gesture_lr_count_ == 1)) {
             if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
-                gesture_motion_ = directions.DIR_DOWN;
+                gesture_motion_ = DIR_DOWN;
             }
             else {
-                gesture_motion_ = directions.DIR_RIGHT;
+                gesture_motion_ = DIR_RIGHT;
             }
         }
         else {
@@ -1210,7 +1208,7 @@ namespace SL06 {
         gesture_far_count_ = 0;
 
         gesture_state_ = 0;
-        gesture_motion_ = directions.DIR_NONE;
+        gesture_motion_ = DIR_NONE;
     }
 
     function setAmbientLightIntEnable(enable: number)
