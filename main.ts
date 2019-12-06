@@ -41,12 +41,6 @@ namespace SL06 {
         let id: number
         id = wireReadDataByte(APDS9960_I2C_ADDR)
 
-        while(true)
-        {
-            console.logValue("ID", id)
-            loops.pause(500)
-        }
-
         /* Set ENABLE register to 0 (disable all features) */
         // ALL, OFF
         if (!setMode(7, 0)) {
@@ -576,6 +570,24 @@ namespace SL06 {
         throwaway = wireReadDataByte(0xE7)
 
         return true;
+    }
+
+    export function getAmbientLight(val: number): number
+    {
+        let val_byte: number;
+        val = 0;
+
+        /* Read value from clear channel, low byte register */
+        // APDS9960_CDATAL
+        val_byte = wireReadDataByte(0x94)
+        val = val_byte;
+
+        /* Read value from clear channel, high byte register */
+        // APDS9960_CDATAH
+        val_byte = wireReadDataByte(0x95)
+        val = val + (val_byte << 8);
+
+        return val
     }
 
     //%blockId=SL06_getRedLight
