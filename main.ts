@@ -7,6 +7,21 @@
 // % color=#444444 icon="\uf0eb" % groups=[Colour,
 // Light, Gesture, Proximity, Optional]
 namespace SL06 {
+
+    let APDS9960_I2C_ADDR = 0x72;
+
+    let gesture_ud_delta_ = 0;
+    let gesture_lr_delta_ = 0;
+
+    let gesture_ud_count_ = 0;
+    let gesture_lr_count_ = 0;
+
+    let gesture_near_count_ = 0;
+    let gesture_far_count_ = 0;
+
+    let gesture_state_ = 0;
+    let gesture_motion_ = "none";
+
     //%blockId=SL06_begin
     //%block="SL06 begin"
     //%advanced=true
@@ -238,6 +253,37 @@ namespace SL06 {
     //%group=Light
     export function getBlueLight(): number {
         return 1;
+    }
+
+    function wireWriteByte(val: NumberFormat.UInt8BE): boolean
+    {
+        pins.i2cWriteNumber(APDS9960_I2C_ADDR, val)
+        return true;
+    }
+
+    function wireWriteDataByte(reg: NumberFormat.UInt8BE, val: NumberFormat.UInt8BE): boolean
+    {
+        let buf = pins.createBuffer(2)
+        buf[0] = reg;
+        buf[1] = val;
+        pins.i2cWriteBuffer(APDS9960_I2C_ADDR, buf)
+        return true;
+    }
+
+
+    function wireReadDataByte(reg: NumberFormat.UInt8BE): NumberFormat.UInt8BE
+    {
+       pins.i2cWriteNumber(APDS9960_I2C_ADDR, reg);
+       return pins.i2cReadNumber(APDS9960_I2C_ADDR,NumberFormat.UInt8BE)
+    }
+
+    function wireReadDataBlock(reg: NumberFormat.UInt8BE, len:number): Buffer
+    {
+        let buff = pins.createBuffer(len)
+
+        pins.i2cWriteNumber(APDS9960_I2C_ADDR, reg);
+        buff =  pins.i2cReadBuffer(APDS9960_I2C_ADDR, 2)
+        return buff
     }
 
     begin();
