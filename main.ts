@@ -158,9 +158,9 @@ namespace SL06 {
     //%block="SL06 get mode"
     //%advanced=true
     //%group=Optional
-    export function getMode(): NumberFormat.UInt8BE
+    export function getMode(): number
     {
-        let enable_value: NumberFormat.UInt8BE;
+        let enable_value: number;
 
         /* Read current ENABLE register */
         // APDS9960_ENABLE
