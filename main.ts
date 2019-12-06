@@ -9,6 +9,8 @@
 namespace SL06 {
 
     let APDS9960_I2C_ADDR = 0x72;
+    let APDS9960_ID_1 = 0xAB
+    let APDS9960_ID_2 = 0X9c
 
     let gesture_ud_delta_ = 0;
     let gesture_lr_delta_ = 0;
@@ -26,25 +28,165 @@ namespace SL06 {
     //%block="SL06 begin"
     //%advanced=true
     //%group=Optional
-    export function begin(): void {
-        return;
+    export function begin(): boolean {
+        let id: number
+        id = wireReadDataByte(APDS9960_I2C_ADDR)
+
+        if (!(id == APDS9960_ID_1 || id == APDS9960_ID_2)) return false
+
+        /* Set ENABLE register to 0 (disable all features) */
+        // ALL, OFF
+        if (!setMode(7, 0)) {
+            return false;
+        }
+
+        /* Set default values for ambient light and proximity registers */
+        // APDS9960_ATIME, DEFAULT_ATIME
+        wireWriteDataByte(0x81, 219)
+
+        // APDS9960_WTIME, DEFAULT_WTIME
+        wireWriteDataByte(0x83, 246)
+
+        //APDS9960_PPULSE, DEFAULT_PROX_PPULSE
+        wireWriteDataByte(0x8E, 0x87)
+
+        // APDS9960_POFFSET_UR, DEFAULT_POFFSET_UR
+        wireWriteDataByte(0x9D, 0)
+
+        // APDS9960_POFFSET_DL, DEFAULT_POFFSET_DL
+        wireWriteDataByte(0x9E, 0)
+
+        // APDS9960_CONFIG1, DEFAULT_CONFIG1
+        wireWriteDataByte(0x8D, 0x60)
+
+        // DEFAULT_LDRIVE
+        setLEDDrive(0)
+
+        // DEFAULT_PGAIN
+        setProximityGain(2)
+
+        // DEFAULT_AGAIN
+        setAmbientLightGain(1)
+
+        // DEFAULT_PILT
+        setProxIntLowThresh(0)
+
+        // DEFAULT_PIHT
+        setProxIntHighThresh(50)
+
+        // DEFAULT_AILT
+        setLightIntLowThreshold(0xFFFF)
+
+        // DEFAULT_AIHT
+        setLightIntHighThreshold(0)
+
+        // APDS9960_PERS, DEFAULT_PERS
+        wireWriteDataByte(0x8C, 0x11)
+
+       // APDS9960_CONFIG2, DEFAULT_CONFIG2
+        wireWriteDataByte(0x90, 0x01)
+
+        // APDS9960_CONFIG3, DEFAULT_CONFIG3
+        wireWriteDataByte(0x9F, 0)
+
+        // DEFAULT_GPENTH
+        setGestureEnterThresh(40)
+
+        // DEFAULT_GEXTH
+        setGestureExitThresh(30)
+
+        // APDS9960_GCONF1, DEFAULT_GCONF1
+        wireWriteDataByte(0xA2, 0x40)
+
+        // DEFAULT_GGAIN
+        setGestureGain(2)
+
+        // DEFAULT_GLDRIVE
+        setGestureLEDDrive(0)
+
+        // DEFAULT_GWTIME
+        setGestureWaitTime(1)
+
+        // APDS9960_GOFFSET_U, DEFAULT_GOFFSET
+        wireWriteDataByte(0xA4, 0)
+
+        // APDS9960_GOFFSET_D, DEFAULT_GOFFSET
+        wireWriteDataByte(0xA5, 0)
+
+        // APDS9960_GOFFSET_L, DEFAULT_GOFFSET
+        wireWriteDataByte(0xA7, 0)
+
+        // APDS9960_GOFFSET_R, DEFAULT_GOFFSET
+        wireWriteDataByte(0xA9, 0)
+
+        // APDS9960_GPULSE, DEFAULT_GPULSE
+        wireWriteDataByte(0xA6, 0xC9)
+
+        // APDS9960_GCONF3, DEFAULT_GCONF3
+        wireWriteDataByte(0xAA, 0)
+
+        // DEFAULT_GIEN
+        setGestureIntEnable(0)
+
+        return true;
     }
 
     //%blockId=SL06_getMode
     //%block="SL06 get mode"
     //%advanced=true
     //%group=Optional
-    export function getMode(): number {
-        return 1;
+    export function getMode(): NumberFormat.UInt8BE
+    {
+        let enable_value: NumberFormat.UInt8BE;
+
+        /* Read current ENABLE register */
+        // APDS9960_ENABLE
+        enable_value = wireReadDataByte(0x80)
+
+        return enable_value;
     }
 
     //%blockId=SL06_setMode
     //%block="SL06 set mode"
     //%advanced=true
     //%group=Optional
-    export function setMode(mode: number, enable: number): void {
-        return;
+    export function setMode(mode: NumberFormat.UInt8BE, enable: NumberFormat.UInt8BE): boolean {
+        let reg_val: NumberFormat.UInt8BE;
+
+        /* Read current ENABLE register */
+        reg_val = getMode();
+        // ERROR value
+        if (reg_val == 0xFF) {
+            return false;
+        }
+
+        /* Change bit(s) in ENABLE register */
+        enable = enable & 0x01;
+        if (mode >= 0 && mode <= 6) {
+            if (enable) {
+                reg_val |= (1 << mode);
+            }
+            else {
+                reg_val &= ~(1 << mode);
+            }
+        }
+        // ALL mode
+        else if (mode == 7) {
+            if (enable) {
+                reg_val = 0x7F;
+            }
+            else {
+                reg_val = 0x00;
+            }
+        }
+
+        /* Write value back to ENABLE register */
+        // APDS9960_ENABLE
+        wireWriteDataByte(0x80, reg_val)
+
+        return true;
     }
+
 
     //%blockId=SL06_enablePower
     //%block="SL06 enable power"
@@ -86,8 +228,25 @@ namespace SL06 {
     //%block="SL06 set LED driver"
     //%advanced=true
     //%group=Optional
-    export function setLEDDRiver(drive: number): void {
-        return;
+    export function setLEDDrive(drive: NumberFormat.UInt8BE): boolean
+    {
+        let val: NumberFormat.UInt8BE = 0;
+
+        /* Read value from CONTROL register */
+        // APDS9960_CONTROL
+        val = wireReadDataByte(0x8F)
+
+        /* Set bits in register to given value */
+        drive &= 0b00000011;
+        drive = drive << 6;
+        val &= 0b00111111;
+        val |= drive;
+
+        /* Write register value back into CONTROL register */
+        // APDS9960_CONTROL, val
+        wireWriteDataByte(0x8F, val)
+
+        return true;
     }
 
     //%blockId=SL06_getGestureLEDDrive
@@ -102,8 +261,25 @@ namespace SL06 {
     //%block="SL06 set gesture LED drive"
     //%group=Gesture
     //%advanced=true
-    export function setGestureLEDDrive(): void {
-        return;
+    function setGestureLEDDrive(drive: number) {
+        let val: number;
+
+        /* Read value from GCONF2 register */
+        // APDS9960_GCONF2
+        val = wireReadDataByte(0xA3)
+        /* Set bits in register to given value */
+        drive &= 0b00000011;
+        drive = drive << 3;
+        val &= 0b11100111;
+        val |= drive;
+
+        /* Write register value back into GCONF2 register */
+        // APDS9960_GCONF2
+        if (!wireWriteDataByte(0xA3, val)) {
+            return false;
+        }
+
+        return true;
     }
 
     //%blockId=SL06_getGestureGain
@@ -178,8 +354,25 @@ namespace SL06 {
     //%block="SL06 set proximity gain"
     //%advanced=true
     //%group=Proximity
-    export function setProximityGain(): void {
-        return;
+    export function setProximityGain(drive: NumberFormat.UInt8BE)
+    {
+        let val: number;
+
+        /* Read value from CONTROL register */
+        // APDS9960_CONTROL
+        val = wireReadDataByte(0x8F)
+
+        /* Set bits in register to given value */
+        drive &= 0b00000011;
+        drive = drive << 2;
+        val &= 0b11110011;
+        val |= drive;
+
+        /* Write register value back into CONTROL register */
+        // APDS9960_CONTROL
+        wireWriteDataByte(0x8F, val)
+
+        return true;
     }
 
     //%blockId=SL06_getProximity
@@ -255,13 +448,112 @@ namespace SL06 {
         return 1;
     }
 
+    function setProxIntLowThresh(threshold: number)
+    {
+        // APDS9960_PILT
+        wireWriteDataByte(0x89, threshold)
+    }
+
+    function setProxIntHighThresh(threshold: number)
+    {
+        // APDS9960_PIHT
+        wireWriteDataByte(0x8B, threshold)
+    }
+
+    function setLightIntLowThreshold(threshold:number)
+    {
+        let val_low: number;
+        let val_high: number;
+
+        /* Break 16-bit threshold into 2 8-bit values */
+        val_low = threshold & 0x00FF;
+        val_high = (threshold & 0xFF00) >> 8;
+
+        /* Write low byte */
+        // APDS9960_AILTL
+        if (!wireWriteDataByte(0x84, val_low)) {
+            return false;
+        }
+
+        /* Write high byte */
+        // APDS9960_AILTH
+        if (!wireWriteDataByte(0x85, val_high)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function setLightIntHighThreshold(threshold: number)
+    {
+        let val_low: number;
+        let val_high: number;
+
+        /* Break 16-bit threshold into 2 8-bit values */
+        val_low = threshold & 0x00FF;
+        val_high = (threshold & 0xFF00) >> 8;
+
+        /* Write low byte */
+        // APDS9960_AIHTL
+        if (!wireWriteDataByte(0x86, val_low)) {
+            return false;
+        }
+
+        /* Write high byte */
+        // APDS9960_AIHTH
+        if (!wireWriteDataByte(0x87, val_high)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function setGestureEnterThresh(threshold: number)
+        {
+        // APDS9960_GPENTH
+        if (!wireWriteDataByte(0xA0, threshold)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function setGestureExitThresh(threshold: number)
+    {
+        // APDS9960_GEXTH
+        if (!wireWriteDataByte(0xA1, threshold)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function setGestureWaitTime(time: number)
+    {
+        let val: number;
+
+        /* Read value from GCONF2 register */
+        // APDS9960_GCONF2
+        val = wireReadDataByte(0xA3)
+
+        /* Set bits in register to given value */
+        time &= 0b00000111;
+        val &= 0b11111000;
+        val |= time;
+
+        /* Write register value back into GCONF2 register */
+        // APDS9960_GCONF2
+        wireWriteDataByte(0xA3, val)
+    }
+
+
     function wireWriteByte(val: NumberFormat.UInt8BE): boolean
     {
         pins.i2cWriteNumber(APDS9960_I2C_ADDR, val)
         return true;
     }
 
-    function wireWriteDataByte(reg: NumberFormat.UInt8BE, val: NumberFormat.UInt8BE): boolean
+    function wireWriteDataByte(reg: number, val: number): boolean
     {
         let buf = pins.createBuffer(2)
         buf[0] = reg;
@@ -274,7 +566,8 @@ namespace SL06 {
     function wireReadDataByte(reg: NumberFormat.UInt8BE): NumberFormat.UInt8BE
     {
        pins.i2cWriteNumber(APDS9960_I2C_ADDR, reg);
-       return pins.i2cReadNumber(APDS9960_I2C_ADDR,NumberFormat.UInt8BE)
+       let val: NumberFormat.UInt8BE = pins.i2cReadNumber(APDS9960_I2C_ADDR, NumberFormat.UInt8BE)
+       return val
     }
 
     function wireReadDataBlock(reg: NumberFormat.UInt8BE, len:number): Buffer
