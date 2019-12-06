@@ -264,20 +264,37 @@ namespace SL06 {
     //%blockId=SL06_disableGestureSensor
     //%block="SL06 disable gesture sensor"
     //%group=Gesture
-    export function disableGestureSensor(): void {
-        return;
+    export function disableGestureSensor()
+    {
+        resetGestureParameters();
+        setGestureIntEnable(0)
+
+        setGestureMode(0)
+
+        setMode(6, 0)
+
     }
 
-    //%blockId=SL06_getLEDDRiver
-    //%block="SL06 get LED driver"
+    //%blockId=SL06_getLEDDRive
+    //%block="SL06 get LED drive"
     //%advanced=true
     //%group=Optional
-    export function getLEDDRiver(): void {
-        return;
+    export function getLEDDrive()
+    {
+        let val: number;
+
+        /* Read value from CONTROL register */
+        // APDS9960_CONTROL
+        val = wireReadDataByte(0x8F)
+
+        /* Shift and mask out LED drive bits */
+        val = (val >> 6) & 0b00000011;
+
+        return val;
     }
 
-    //%blockId=SL06_setLEDDRiver
-    //%block="SL06 set LED driver"
+    //%blockId=SL06_setLEDDRive
+    //%block="SL06 set LED drive"
     //%advanced=true
     //%group=Optional
     export function setLEDDrive(drive: NumberFormat.UInt8BE): boolean
@@ -305,15 +322,25 @@ namespace SL06 {
     //%block="SL06 get gesture LED drive"
     //%advanced=true
     //%group=Gesture
-    export function getGestureLEDDrive(drive: number): void {
-        return;
+    export function getGestureLEDDrive()
+    {
+        let val:number;
+
+        /* Read value from GCONF2 register */
+        // APDS9960_GCONF2
+        val = wireReadDataByte(0xA3)
+
+        /* Shift and mask out GLDRIVE bits */
+        val = (val >> 3) & 0b00000011;
+
+        return val;
     }
 
     //%blockId=SL06_setGestureLEDDrive
     //%block="SL06 set gesture LED drive"
     //%group=Gesture
     //%advanced=true
-    function setGestureLEDDrive(drive: number) {
+    export function setGestureLEDDrive(drive: number) {
         let val: number;
 
         /* Read value from GCONF2 register */
@@ -327,27 +354,50 @@ namespace SL06 {
 
         /* Write register value back into GCONF2 register */
         // APDS9960_GCONF2
-        if (!wireWriteDataByte(0xA3, val)) {
-            return false;
-        }
-
-        return true;
+        wireWriteDataByte(0xA3, val)
+;
     }
 
     //%blockId=SL06_getGestureGain
     //%block="SL06 get gesture gain"
     //%advanced=true
     //%group=Gesture
-    export function getGestureGain(): void {
-        return;
+    export function getGestureGain()
+    {
+        let val: number;
+
+        /* Read value from GCONF2 register */
+        // APDS9960_GCONF2
+        val = wireReadDataByte(0xA3)
+
+        /* Shift and mask out GGAIN bits */
+        val = (val >> 5) & 0b00000011;
+
+        return val;
     }
 
     //%blockId=SL06_setGestureGain
     //%block="SL06 set gesture gain"
     //%advanced=true
     //%group=Gesture
-    export function setGestureGain(gain: number): void {
-        return;
+    export function setGestureGain(gain: number )
+    {
+        let val: number;
+
+        /* Read value from GCONF2 register */
+        // APDS9960_GCONF2
+        val = wireReadDataByte(0xA3)
+
+        /* Set bits in register to given value */
+        gain &= 0b00000011;
+        gain = gain << 5;
+        val &= 0b10011111;
+        val |= gain;
+
+        /* Write register value back into GCONF2 register */
+        // APDS9960_GCONF2
+        wireWriteDataByte(0xA3, val)
+
     }
 
     //%blockId=SL06_getGestureIntEnable
@@ -437,15 +487,41 @@ namespace SL06 {
     //%blockId=SL06_enableLightSensor
     //%block="SL06 enable light sensor"
     //%group=Light
-    export function enableLightSensor(intterupts: boolean = false): void {
-        return;
+    export function enableLightSensor(interrupts: boolean)
+    {
+
+        /* Set default gain, interrupts, enable power, and enable sensor */
+        setAmbientLightGain(1)
+
+        if (interrupts) {
+            if (!setAmbientLightIntEnable(1)) {
+                return false;
+            }
+        }
+        else {
+            if (!setAmbientLightIntEnable(0)) {
+                return false;
+            }
+        }
+        enablePower()
+
+        // AMBIENT_LIGHT
+        setMode(1, 1)
+
+        return true;
     }
 
     //%blockId=SL06_disableLightSensor
     //%block="SL06 disable light sensor"
     //%group=Light
-    export function disableLightSensor(): void {
-        return;
+    export function disableLightSensor()
+    {
+        setAmbientLightIntEnable(0)
+        
+        // AMBIENT_LIGHT
+        setMode(1, 0)
+
+        return true;
     }
 
     //%blockId=SL06_getAmbientLightGain
@@ -453,51 +529,119 @@ namespace SL06 {
     //%group=Light
     //%advanced=true
     export function getAmbientLightGain(): number {
-        return 1;
+        let val: number;
+
+        /* Read value from CONTROL register */
+        // APDS9960_CONTROL
+        val = wireReadDataByte(0x8F)
+
+        /* Shift and mask out ADRIVE bits */
+        val &= 0b00000011;
+
+        return val;
     }
 
     //%blockId=SL06_setAmbientLightGain
     //%block="SL06 set ambient light gain"
     //%group=Light
     //%advanced=true
-    export function setAmbientLightGain(gain: number): void {
-        return
+    export function setAmbientLightGain(drive: number)
+    {
+        let val: number;
+
+        /* Read value from CONTROL register */
+        // APDS9960_CONTROL
+        val = wireReadDataByte(0x8F)
+
+        /* Set bits in register to given value */
+        drive &= 0b00000011;
+        val &= 0b11111100;
+        val |= drive;
+
+        /* Write register value back into CONTROL register */
+        // APDS9960_CONTROL
+        wireWriteDataByte(0x8F, val)
+
+        return true;
     }
 
     //%blockId=SL06_clearAmbientLightInt
     //%block="SL06 clear ambient light int"
     //%group=Light
     //%advanced=true
-    export function clearAmbientLightInt(): void {
-        return;
-    }
+    export function clearAmbientLightInt()
+    {
+        let throwaway: number;
+        // APDS9960_AICLEAR
+        throwaway = wireReadDataByte(0xE7)
 
-    //%blockId=SL06_getAmbientLight
-    //%block="SL06 get ambient light"
-    //%group=Light
-    export function getAmbientLight(): number {
-        return 1
+        return true;
     }
 
     //%blockId=SL06_getRedLight
     //%block="SL06 get red light"
     //%group=Light
-    export function getRedLight(): number {
-        return 1
+    export function getRedLight(): number
+    {
+        let val_byte: number;
+        let val: number = 0;
+
+        /* Read value from clear channel, low byte register */
+        // APDS9960_RDATAL
+        val_byte = wireReadDataByte(0x96)
+        val = val_byte;
+
+        /* Read value from clear channel, high byte register */
+        val_byte = wireReadDataByte(0x97)
+        val = val + (val_byte << 8);
+
+        return val;
     }
 
     //%blockId=SL06_getGreenLight
     //%block="SL06 get green light"
     //%group=Light
-    export function getGreenLight(): number {
-        return 1
+    export function getGreenLight(): number
+    {
+        let val_byte: number;
+        let val: number = 0;
+
+        /* Read value from clear channel, low byte register */
+        // APDS9960_GDATAL
+        val_byte = wireReadDataByte(0x98)
+
+        val = val_byte;
+
+        /* Read value from clear channel, high byte register */
+        // APDS9960_GDATAH
+        val_byte = wireReadDataByte(0x99)
+
+        val = val + (val_byte << 8);
+
+        return val;
     }
 
     //%blockId=SL06_getBlueLight
     //%block="SL06 get blue light"
     //%group=Light
-    export function getBlueLight(): number {
-        return 1;
+    export function getBlueLight(): number
+    {
+        let val_byte: number;
+        let val: number = 0;
+
+        /* Read value from clear channel, low byte register */
+        // APDS9960_BDATAL
+        val_byte = wireReadDataByte(0x9A)
+
+        val = val_byte;
+
+        /* Read value from clear channel, high byte register */
+        // APDS9960_BDATAH
+        val_byte = wireReadDataByte(0x9B)
+
+        val = val + (val_byte << 8);
+
+        return val;
     }
 
     function setProxIntLowThresh(threshold: number)
@@ -651,6 +795,27 @@ namespace SL06 {
 
         gesture_state_ = 0;
         gesture_motion_ = 'none';
+    }
+
+    function setAmbientLightIntEnable(enable: number)
+    {
+        let val: number;
+
+        /* Read value from ENABLE register */
+        // APDS9960_ENABLE
+        val = wireReadDataByte(0x80)
+
+        /* Set bits in register to given value */
+        enable &= 0b00000001;
+        enable = enable << 4;
+        val &= 0b11101111;
+        val |= enable;
+
+        /* Write register value back into ENABLE register */
+        // APDS9960_ENABLE
+        wireWriteDataByte(0x80, val)
+
+        return true;
     }
 
 
