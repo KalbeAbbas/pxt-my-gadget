@@ -494,7 +494,7 @@ namespace SL06 {
 
 
         /* Make sure that power and gesture is on and data is valid */
-        if (!isGestureAvailable() || (mode == 0)) {
+        if (!isGestureAvailable() || !(mode)) {
             return DIR_NONE;
         }
 
