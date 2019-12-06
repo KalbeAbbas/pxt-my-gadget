@@ -572,10 +572,13 @@ namespace SL06 {
         return true;
     }
 
-    export function getAmbientLight(val: number): number
+    //%blockId=SL06_getAmbientLight
+    //%block="SL06 get ambient light"
+    //%group=Light
+    export function getAmbientLight(): number
     {
         let val_byte: number;
-        val = 0;
+        let val:number = 0;
 
         /* Read value from clear channel, low byte register */
         // APDS9960_CDATAL
