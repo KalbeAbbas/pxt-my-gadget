@@ -41,7 +41,7 @@ namespace SL06 {
         let id: number
         id = wireReadDataByte(APDS9960_I2C_ADDR)
 
-        if (!(id == APDS9960_ID_1 || id == APDS9960_ID_2)) return false
+        console.logValue("ID", id)
 
         /* Set ENABLE register to 0 (disable all features) */
         // ALL, OFF
