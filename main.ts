@@ -490,6 +490,13 @@ namespace SL06 {
         let fifo_data: Buffer = pins.createBuffer(128)
         let motion:string;
         let i:number;
+        let mode: number = getMode() & 0b01000001
+
+        while (true)
+        {
+            console.logValue("Mode", mode)
+            loops.pause(500)
+        }
 
         /* Make sure that power and gesture is on and data is valid */
         if (!isGestureAvailable() || !(getMode() & 0b01000001)) {
