@@ -8,6 +8,24 @@
 //% groups=[Colour,Light, Gesture, Proximity, Optional]
 namespace SL06 {
 
+    enum directions {
+        DIR_NONE,
+        DIR_LEFT,
+        DIR_RIGHT,
+        DIR_UP,
+        DIR_DOWN,
+        DIR_NEAR,
+        DIR_FAR,
+        DIR_ALL
+    };
+
+    enum states {
+        NA_STATE1,
+        NEAR_STATE1,
+        FAR_STATE1,
+        ALL_STATE1
+    };
+
     let APDS9960_I2C_ADDR = 0x39;
     let APDS9960_ID_1 = 0xAB
     let APDS9960_ID_2 = 0X9c
@@ -31,7 +49,7 @@ namespace SL06 {
     let gesture_far_count_ = 0;
 
     let gesture_state_ = 0;
-    let gesture_motion_ = "none";
+    let gesture_motion_ = directions.DIR_NONE;
 
     //%blockId=SL06_begin
     //%block="SL06 begin"
@@ -402,52 +420,428 @@ namespace SL06 {
     //%block="SL06 get gesture int enable"
     //%advanced=true
     //%group=Gesture
-    export function getGestureIntEnable(): void {
-        return;
+    export function getGestureIntEnable()
+    {
+        let val = 0;
+
+        /* Read value from GCONF4 register */
+        // APDS9960_GCONF4
+        val = wireReadDataByte(0xAB)
+
+        /* Shift and mask out GIEN bit */
+        val = (val >> 1) & 0b00000001;
+
+        return val;
     }
 
     //%blockId=SL06_setGestureIntEnable
     //%block="SL06 set gesture int enable"
     //%group=Gesture
     //%advanced=true
-    export function setGestureIntEnable(enable: number): void {
-        return;
+    export function setGestureIntEnable(enable: number)
+    {
+        let val = 0;
+
+        /* Read value from GCONF4 register */
+        // APDS9960_GCONF4
+        val = wireReadDataByte(0xAB)
+        /* Set bits in register to given value */
+        enable &= 0b00000001;
+        enable = enable << 1;
+        val &= 0b11111101;
+        val |= enable;
+
+        /* Write register value back into GCONF4 register */
+        // APDS9960_GCONF4
+        wireWriteDataByte(0xAB, val)
+
+        return true;
     }
 
     //%blockId=SL06_isGestureAvailable
     //%block="SL06 is gesture available"
     //%group=Gesture
-    export function isGestureAvailable(): boolean {
-        return true;
+    export function isGestureAvailable()
+    {
+        let val = 0;
+
+        /* Read value from GSTATUS register */
+        // APDS9960_GSTATUS
+        val = wireReadDataByte(0xAF)
+
+        /* Shift and mask out GVALID bit */
+        // APDS9960_GVALID
+        val &= 0b00000001;
+
+        /* Return true/false based on GVALID bit */
+        if (val == 1) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     //%blockId=SL06_getGesture
     //%block="SL06 get gesture"
     //%group=Gesture
-    export function getGesture(): number {
-        return 1;
+    export function getGesture(): number
+    {
+        let fifo_level = 0;
+        let bytes_read = 0;
+        let gstatus:number;
+        let fifo_data: Buffer = pins.createBuffer(128)
+        let motion:number;
+        let i:number;
+
+        /* Make sure that power and gesture is on and data is valid */
+        if (!isGestureAvailable() || !(getMode() & 0b01000001)) {
+            return directions.DIR_NONE;
+        }
+
+        /* Keep looping as long as gesture data is valid */
+        while (1) {
+
+            /* Wait some time to collect next batch of FIFO data */
+            // FIFO_PAUSE_TIME
+            loops.pause(30);
+
+            /* Get the contents of the STATUS register. Is data still valid? */
+            // APDS9960_GSTATUS
+            gstatus = wireReadDataByte(0xAF)
+
+            /* If we have valid data, read in FIFO */
+            if ((gstatus & 0b00000001) == 0b00000001) {
+
+                /* Read the current FIFO level */
+                // APDS9960_GFLVL
+                fifo_level = wireReadDataByte(0xAE)
+
+                /* If there's stuff in the FIFO, read it into our data block */
+                if (fifo_level > 0) {
+                    // APDS9960_GFIFO_U
+                    fifo_data = wireReadDataBlock(0xFC,(fifo_level * 4));
+
+                    /* If at least 1 set of data, sort the data into U/D/L/R */
+                    if (fifo_data.length >= 4) {
+                        for (i = 0; i < bytes_read; i += 4) {
+                            gesture_data_u_data[gesture_data_index] = fifo_data[i + 0];
+                            gesture_data_d_data[gesture_data_index] = fifo_data[i + 1];
+                            gesture_data_l_data[gesture_data_index] = fifo_data[i + 2];
+                            gesture_data_r_data[gesture_data_index] = fifo_data[i + 3];
+                            gesture_data_index++;
+                            gesture_data_total_gestures++;
+                        }
+
+                        /* Filter and process gesture data. Decode near/far state */
+                        if (processGestureData()) {
+                            if (decodeGesture()) {
+                            }
+                        }
+
+                        /* Reset data */
+                        gesture_data_index = 0;
+                        gesture_data_total_gestures = 0;
+                    }
+                }
+            } else {
+
+                /* Determine best guessed gesture and clean up */
+                loops.pause(30);
+                decodeGesture();
+                motion = gesture_motion_;
+                resetGestureParameters();
+                return motion;
+            }
+        }
+
+        return 0
+    }
+
+    function decodeGesture(): boolean
+    {
+        /* Return if near or far event is detected */
+        if (gesture_state_ == states.NEAR_STATE1) {
+            gesture_motion_ = directions.DIR_NEAR;
+            return true;
+        }
+        else if (gesture_state_ == states.FAR_STATE1) {
+            gesture_motion_ = directions.DIR_FAR;
+            return true;
+        }
+
+        /* Determine swipe direction */
+        if ((gesture_ud_count_ == -1) && (gesture_lr_count_ == 0)) {
+            gesture_motion_ = directions.DIR_UP;
+        }
+        else if ((gesture_ud_count_ == 1) && (gesture_lr_count_ == 0)) {
+            gesture_motion_ = directions.DIR_DOWN;
+        }
+        else if ((gesture_ud_count_ == 0) && (gesture_lr_count_ == 1)) {
+            gesture_motion_ = directions.DIR_RIGHT;
+        }
+        else if ((gesture_ud_count_ == 0) && (gesture_lr_count_ == -1)) {
+            gesture_motion_ = directions.DIR_LEFT;
+        }
+        else if ((gesture_ud_count_ == -1) && (gesture_lr_count_ == 1)) {
+            if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
+                gesture_motion_ = directions.DIR_UP;
+            }
+            else {
+                gesture_motion_ = directions.DIR_RIGHT;
+            }
+        }
+        else if ((gesture_ud_count_ == 1) && (gesture_lr_count_ == -1)) {
+            if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
+                gesture_motion_ = directions.DIR_DOWN;
+            }
+            else {
+                gesture_motion_ = directions.DIR_LEFT;
+            }
+        }
+        else if ((gesture_ud_count_ == -1) && (gesture_lr_count_ == -1)) {
+            if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
+                gesture_motion_ = directions.DIR_UP;
+            }
+            else {
+                gesture_motion_ = directions.DIR_LEFT;
+            }
+        }
+        else if ((gesture_ud_count_ == 1) && (gesture_lr_count_ == 1)) {
+            if (Math.abs(gesture_ud_delta_) > Math.abs(gesture_lr_delta_)) {
+                gesture_motion_ = directions.DIR_DOWN;
+            }
+            else {
+                gesture_motion_ = directions.DIR_RIGHT;
+            }
+        }
+        else {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    function processGestureData(): boolean
+    {
+        let u_first = 0;
+        let d_first = 0;
+        let l_first = 0;
+        let r_first = 0;
+        let u_last = 0;
+        let d_last = 0;
+        let l_last = 0;
+        let r_last = 0;
+        let ud_ratio_first = 0;
+        let lr_ratio_first = 0;
+        let ud_ratio_last = 0;
+        let lr_ratio_last = 0;
+        let ud_delta = 0;
+        let lr_delta = 0;
+        let i = 0;
+
+        /* If we have less than 4 total gestures, that's not enough */
+        if (gesture_data_total_gestures <= 4) {
+            return false;
+        }
+
+        /* Check to make sure our data isn't out of bounds */
+        if ((gesture_data_total_gestures <= 32) &&
+            (gesture_data_total_gestures > 0)) {
+
+            /* Find the first value in U/D/L/R above the threshold */
+            for (i = 0; i < gesture_data_total_gestures; i++) {
+                // GESTURE_THRESHOLD_OUT
+                if ((gesture_data_u_data[i] > 10) &&
+                    (gesture_data_d_data[i] > 10) &&
+                    (gesture_data_l_data[i] > 10) &&
+                    (gesture_data_r_data[i] > 10)) {
+
+                    u_first = gesture_data_u_data[i];
+                    d_first = gesture_data_d_data[i];
+                    l_first = gesture_data_l_data[i];
+                    r_first = gesture_data_r_data[i];
+                    break;
+                }
+            }
+
+            /* If one of the _first values is 0, then there is no good data */
+            if ((u_first == 0) || (d_first == 0) ||
+                (l_first == 0) || (r_first == 0)) {
+
+                return false;
+            }
+            /* Find the last value in U/D/L/R above the threshold */
+            for (i = gesture_data_total_gestures - 1; i >= 0; i--) {
+
+                if ((gesture_data_u_data[i] > 10) &&
+                    (gesture_data_d_data[i] > 10) &&
+                    (gesture_data_l_data[i] > 10) &&
+                    (gesture_data_r_data[i] > 10)) {
+
+                    u_last = gesture_data_u_data[i];
+                    d_last = gesture_data_d_data[i];
+                    l_last = gesture_data_l_data[i];
+                    r_last = gesture_data_r_data[i];
+                    break;
+                }
+            }
+        }
+
+        /* Calculate the first vs. last ratio of up/down and left/right */
+        ud_ratio_first = ((u_first - d_first) * 100) / (u_first + d_first);
+        lr_ratio_first = ((l_first - r_first) * 100) / (l_first + r_first);
+        ud_ratio_last = ((u_last - d_last) * 100) / (u_last + d_last);
+        lr_ratio_last = ((l_last - r_last) * 100) / (l_last + r_last);
+
+        /* Determine the difference between the first and last ratios */
+        ud_delta = ud_ratio_last - ud_ratio_first;
+        lr_delta = lr_ratio_last - lr_ratio_first;
+
+        /* Accumulate the UD and LR delta values */
+        gesture_ud_delta_ += ud_delta;
+        gesture_lr_delta_ += lr_delta;
+
+        /* Determine U/D gesture */
+        // GESTURE_SENSITIVITY_1
+        if (gesture_ud_delta_ >= 50) {
+            gesture_ud_count_ = 1;
+        }
+        else if (gesture_ud_delta_ <= -50) {
+            gesture_ud_count_ = -1;
+        }
+        else {
+            gesture_ud_count_ = 0;
+        }
+
+        /* Determine L/R gesture */
+        if (gesture_lr_delta_ >= 50) {
+            gesture_lr_count_ = 1;
+        }
+        else if (gesture_lr_delta_ <= -50) {
+            gesture_lr_count_ = -1;
+        }
+        else {
+            gesture_lr_count_ = 0;
+        }
+
+        /* Determine Near/Far gesture */
+        if ((gesture_ud_count_ == 0) && (gesture_lr_count_ == 0)) {
+            // GESTURE_SENSITIVITY_2
+            if ((Math.abs(ud_delta) < 20) &&
+                (Math.abs(lr_delta) < 20)) {
+
+                if ((ud_delta == 0) && (lr_delta == 0)) {
+                    gesture_near_count_++;
+                }
+                else if ((ud_delta != 0) || (lr_delta != 0)) {
+                    gesture_far_count_++;
+                }
+
+                if ((gesture_near_count_ >= 10) && (gesture_far_count_ >= 2)) {
+                    if ((ud_delta == 0) && (lr_delta == 0)) {
+                        gesture_state_ = states.NEAR_STATE1;
+                    }
+                    else if ((ud_delta != 0) && (lr_delta != 0)) {
+                        gesture_state_ = states.FAR_STATE1;
+                    }
+                    return true;
+                }
+            }
+        }
+        else {
+            // GESTURE_SENSITIVITY_2
+            if ((Math.abs(ud_delta) < 20) &&
+                (Math.abs(lr_delta) < 20)) {
+
+                if ((ud_delta == 0) && (lr_delta == 0)) {
+                    gesture_near_count_++;
+                }
+
+                if (gesture_near_count_ >= 10) {
+                    gesture_ud_count_ = 0;
+                    gesture_lr_count_ = 0;
+                    gesture_ud_delta_ = 0;
+                    gesture_lr_delta_ = 0;
+                }
+            }
+        }
+        return false;
     }
 
     //%blockId=SL06_enableProximitySensor
     //%block="SL06 enable proximity sensor"
     //%group=Proximity
-    export function enableProximitySensor(interrupts: boolean): void {
-        return;
+    export function enableProximitySensor(interrupts: boolean)
+    {
+        /* Set default gain, LED, interrupts, enable power, and enable sensor */
+        // DEFAULT_PGAIN
+        setProximityGain(2)
+
+        // DEFAULT_LDRIVE
+        setLEDDrive(0)
+
+        if (interrupts) {
+            setProximityIntEnable(1)
+        } else {
+            setProximityIntEnable(0)
+        }
+        enablePower()
+
+        setMode(2, 1)
+
+        return true;
     }
 
     //%blockId=SL06_disableProximitySensor
     //%block="SL06 disble proximity sensor"
     //%group=Proximity
-    export function disableProximitySensor(): void {
-        return;
+    export function disableProximitySensor()
+    {
+        setProximityIntEnable(0)
+
+        setMode(2, 0)
+
+        return true;
+    }
+
+    function setProximityIntEnable(enable: number)
+    {
+        let val: number;
+
+        /* Read value from ENABLE register */
+        // APDS9960_ENABLE
+        val = wireReadDataByte(0x80)
+
+        /* Set bits in register to given value */
+        enable &= 0b00000001;
+        enable = enable << 5;
+        val &= 0b11011111;
+        val |= enable;
+
+        /* Write register value back into ENABLE register */
+        // APDS9960_ENABLE
+        wireWriteDataByte(0x80, val)
+
+        return true;
     }
 
     //%blockId=SL06_getProximityGain
     //%block="SL06 get proximity gain"
     //%advanced=true
     //%group=Proximity
-    export function getProximityGain(): number {
-        return 1;
+    export function getProximityGain(): number
+    {
+        let val = 0;
+
+        /* Read value from CONTROL register */
+        // APDS9960_CONTROL
+        val = wireReadDataByte(0x8F)
+
+        /* Shift and mask out PDRIVE bits */
+        val = (val >> 2) & 0b00000011;
+
+        return val;
     }
 
     //%blockId=SL06_setProximityGain
@@ -816,7 +1210,7 @@ namespace SL06 {
         gesture_far_count_ = 0;
 
         gesture_state_ = 0;
-        gesture_motion_ = 'none';
+        gesture_motion_ = directions.DIR_NONE;
     }
 
     function setAmbientLightIntEnable(enable: number)
@@ -869,7 +1263,7 @@ namespace SL06 {
         let buff = pins.createBuffer(len)
 
         pins.i2cWriteNumber(APDS9960_I2C_ADDR, reg);
-        buff =  pins.i2cReadBuffer(APDS9960_I2C_ADDR, 2)
+        buff =  pins.i2cReadBuffer(APDS9960_I2C_ADDR, len)
         return buff
     }
 
