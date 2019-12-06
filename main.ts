@@ -4,7 +4,8 @@
 /**
  * SL06 block
  */
-// % color=#444444 icon="\uf0eb" % groups=[Colour,Light, Gesture, Proximity, Optional]
+// % color=#444444 icon="\uf0eb"
+// % groups=[Colour,Light, Gesture, Proximity, Optional]
 namespace SL06 {
 
     let APDS9960_I2C_ADDR = 0x72;
