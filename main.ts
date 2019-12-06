@@ -8,7 +8,7 @@
 //% groups=[Colour,Light, Gesture, Proximity, Optional]
 namespace SL06 {
 
-    let APDS9960_I2C_ADDR = 0x72;
+    let APDS9960_I2C_ADDR = 0x39;
     let APDS9960_ID_1 = 0xAB
     let APDS9960_ID_2 = 0X9c
 
@@ -41,7 +41,11 @@ namespace SL06 {
         let id: number
         id = wireReadDataByte(APDS9960_I2C_ADDR)
 
-        console.logValue("ID", id)
+        while(true)
+        {
+            console.logValue("ID", id)
+            loops.pause(500)
+        }
 
         /* Set ENABLE register to 0 (disable all features) */
         // ALL, OFF
@@ -831,10 +835,10 @@ namespace SL06 {
     }
 
 
-    function wireReadDataByte(reg: NumberFormat.UInt8BE): NumberFormat.UInt8BE
+    function wireReadDataByte(reg: number): number
     {
        pins.i2cWriteNumber(APDS9960_I2C_ADDR, reg);
-       let val: NumberFormat.UInt8BE = pins.i2cReadNumber(APDS9960_I2C_ADDR, NumberFormat.UInt8BE)
+       let val: number = pins.i2cReadNumber(APDS9960_I2C_ADDR, NumberFormat.UInt8BE)
        return val
     }
 
